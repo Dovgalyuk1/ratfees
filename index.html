@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAT FEES — it runs the wallets and takes the fee</title>
+<meta name="description" content="The rat runs the chain wallet by wallet, looking for a fee left lying out. It takes one crumb, carries it back to the hole, and half of everything it gets home goes to the holders while the rest burns.">
+<meta property="og:title" content="RAT FEES — it runs the wallets and takes the fee">
+<meta property="og:description" content="It only takes a crumb. It takes it from everybody.">
+<meta property="og:image" content="assets/og.png">
+<meta name="theme-color" content="#0d1411">
+<link rel="icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Rubik:wght@400;500;700&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#0c120f; --night2:#121b17; --panel:#17231e; --panel2:#1d2c25;
+  --line:#2e4238; --cream:#efe6cf; --dim:#8fa396; --dimmer:#61756a;
+  --cheese:#f2b632; --pink:#f2879b; --grey:#9a9aa2; --danger:#e04a4a; --go:#4fbf6a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--night); color:var(--cream);
+  font-family:"Rubik",system-ui,sans-serif; font-size:17px; line-height:1.62;
+  overflow-x:clip;
+  background-image:radial-gradient(circle at 50% 0%, rgba(242,182,50,.05), transparent 55%);
+}
+img{max-width:100%}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative;z-index:1}
+h1,h2,h3,.rm{font-family:"Rubik Mono One","Rubik",sans-serif;font-weight:400;line-height:1.3}
+.tiny{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer)}
+
+/* bar */
+#bar{position:sticky;top:0;z-index:60;background:rgba(12,18,15,.92);backdrop-filter:blur(7px);border-bottom:1px solid var(--line)}
+#bar .wrap{display:flex;align-items:center;gap:16px;height:60px}
+.mark{font-family:"Rubik Mono One",sans-serif;font-size:21px;color:var(--cream);text-decoration:none;display:flex;align-items:center;gap:10px}
+.mark span{color:var(--cheese)}
+.mark img{height:28px;image-rendering:pixelated}
+#nav{display:flex;gap:18px;margin-left:6px}
+#nav a{font-size:14px;color:var(--dim);text-decoration:none}
+#nav a:hover{color:var(--cheese)}
+.spacer{flex:1}
+.chip{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.09em;text-transform:uppercase;border:1px solid var(--line);
+  background:var(--panel);color:var(--cream);padding:8px 11px;cursor:pointer;text-decoration:none;display:inline-block;line-height:1;border-radius:3px}
+.chip:hover{border-color:var(--cheese);color:var(--cheese)}
+.chip.on{border-color:var(--cheese);color:var(--cheese)}
+.chip.soon{opacity:.45;cursor:not-allowed}
+.chip .sm{display:none}
+
+/* ticker */
+#tick{background:var(--panel);border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap}
+#tick div{display:inline-block;padding:7px 0;animation:mq 44s linear infinite;font-family:"Roboto Mono",monospace;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+#tick b{color:var(--cheese);font-weight:400;padding:0 15px}
+@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* hero */
+#hero{padding:52px 0 32px}
+.hero-in{display:grid;grid-template-columns:1.05fr .95fr;gap:38px;align-items:center}
+h1{font-size:clamp(26px,4vw,44px);margin:14px 0 18px}
+h1 em{font-style:normal;color:var(--cheese)}
+.lede{font-size:18px;color:var(--dim);max-width:47ch}
+.acts{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:26px 0 14px}
+.btn{font-family:"Roboto Mono",monospace;font-size:12.5px;letter-spacing:.13em;text-transform:uppercase;padding:15px 20px;cursor:pointer;
+  text-decoration:none;display:inline-block;border:1px solid var(--cheese);background:var(--cheese);color:#231a06;border-radius:3px;
+  box-shadow:0 0 0 rgba(242,182,50,0);transition:box-shadow .15s,transform .07s}
+.btn:hover{box-shadow:0 0 24px rgba(242,182,50,.35)}
+.btn:active{transform:translateY(2px)}
+.btn.ghost{background:transparent;color:var(--cream);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--cheese);color:var(--cheese)}
+.meta{font-family:"Roboto Mono",monospace;font-size:11.5px;color:var(--dimmer)}
+
+.ratbox{position:relative;display:flex;flex-direction:column;align-items:center}
+.scene{position:relative;width:100%;border:1px solid var(--line);border-radius:5px;padding:22px 16px 0;overflow:hidden;
+  background:linear-gradient(180deg,#101a15,#0b1310)}
+.scene:after{content:"";position:absolute;left:0;right:0;bottom:0;height:54px;background:repeating-linear-gradient(90deg,#1b2620 0 46px,#16201b 46px 92px);border-top:2px solid #26362d}
+#ratImg{display:block;margin:0 auto;width:84%;max-width:330px;image-rendering:pixelated;cursor:pointer;position:relative;z-index:2;
+  filter:drop-shadow(0 12px 16px rgba(0,0,0,.6));animation:sniff 3.4s ease-in-out infinite alternate}
+@keyframes sniff{to{transform:translateY(-8px) rotate(-1.4deg)}}
+.hole{position:absolute;left:14px;bottom:0;width:78px;height:54px;background:#050907;border-radius:40px 40px 0 0;border:2px solid #26362d;border-bottom:none;z-index:3}
+.tag{position:absolute;top:10px;right:10px;z-index:4;background:var(--cheese);color:#231a06;border-radius:3px;
+  font-family:"Roboto Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:7px 10px;transform:rotate(3deg);animation:wig 2.5s ease-in-out infinite}
+@keyframes wig{50%{transform:rotate(-3deg) translateY(-3px)}}
+.playnow{margin-top:15px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+.drop{position:absolute;inset:0;pointer-events:none;z-index:5}
+.coin{position:absolute;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#ffe9a8,#e8b420 62%,#8a6414);border:1px solid #0c120f}
+
+/* sections */
+section{padding:56px 0;border-top:1px solid var(--line)}
+.head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+.head h2{font-size:clamp(19px,2.7vw,28px);margin:0}
+.head .tiny{margin-left:auto}
+.sub{color:var(--dim);max-width:64ch;margin:0 0 26px}
+
+/* game */
+#run{background:var(--night2)}
+.gamegrid{display:grid;grid-template-columns:1.42fr .58fr;gap:22px;align-items:start}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:5px;overflow:hidden}
+.panel .ph{border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:12px;background:var(--panel2)}
+.panel .ph b{font-family:"Rubik Mono One",sans-serif;font-size:12px;color:var(--cheese);font-weight:400}
+.panel .pb{padding:14px}
+#cvWrap{position:relative;background:#070c09}
+#cv{display:block;width:100%;height:auto;touch-action:none;cursor:pointer}
+#hintBar{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;background:rgba(5,9,7,.88);color:var(--dim);
+  font-family:"Roboto Mono",monospace;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
+.gctl{display:flex;gap:12px;padding:14px;border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
+#runBtn{flex:1;min-width:210px;font-family:"Roboto Mono",monospace;font-size:14px;letter-spacing:.2em;text-transform:uppercase;padding:17px 16px;
+  border:1px solid var(--cheese);background:var(--cheese);color:#231a06;cursor:pointer;user-select:none;border-radius:4px;box-shadow:0 5px 0 #8a6414}
+#runBtn.hold{box-shadow:0 1px 0 #8a6414;transform:translateY(3px)}
+#runBtn:disabled{opacity:.45}
+.meter{margin-bottom:12px}
+.meter .mt{display:flex;justify-content:space-between;font-family:"Roboto Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);margin-bottom:5px}
+.mbar{height:14px;border:1px solid var(--line);background:#0a100d;position:relative;overflow:hidden;border-radius:2px}
+.mbar i{position:absolute;left:0;top:0;bottom:0;width:0%;display:block;background:linear-gradient(90deg,#3e7a52,#8fd3a4);transition:width .08s linear}
+#noiseFill{background:linear-gradient(90deg,#7a5a12,#f2b632)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stat{border:1px solid var(--line);background:#0e1713;padding:9px 10px;border-radius:3px}
+.stat b{display:block;font-family:"Roboto Mono",monospace;font-size:18px;color:var(--cheese)}
+.stat i{font-style:normal;font-family:"Roboto Mono",monospace;font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dimmer)}
+#log{height:132px;overflow:auto;border:1px solid var(--line);background:#0a100d;padding:8px 10px;font-family:"Roboto Mono",monospace;font-size:11.5px;line-height:1.75;border-radius:3px}
+#log div{border-bottom:1px dotted rgba(143,163,150,.18);padding:1px 0;color:var(--dim)}
+#log b{color:var(--cheese)}
+
+/* haul */
+.haul{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:24px}
+.hc{border:1px solid var(--line);background:var(--panel);padding:14px;position:relative;border-radius:4px;min-width:0}
+.hc.locked *{visibility:hidden}
+.hc.locked{background:repeating-linear-gradient(135deg,#131d18 0 9px,#101812 9px 18px)}
+.hc.locked:after{content:"NOT RUN YET";visibility:visible;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.22em;color:var(--dimmer)}
+.hc u{display:block;text-decoration:none;font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.14em;color:var(--dimmer)}
+.hc b{font-family:"Rubik Mono One",sans-serif;font-size:12px;font-weight:400;display:block;margin:7px 0 8px;color:var(--cheese);line-height:1.5}
+.hc p{margin:0;font-size:14px;color:var(--dim)}
+
+/* pins */
+.pins{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.pin{border:1px solid var(--line);background:linear-gradient(180deg,#16211c,#101913);padding:20px 16px;border-radius:5px;min-width:0}
+.pin:hover{border-color:rgba(242,182,50,.45)}
+.pin .n{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--dimmer);letter-spacing:.2em}
+.pin h3{margin:10px 0 10px;font-size:15px;color:var(--cheese)}
+.pin p{margin:0;font-size:15px;color:var(--dim)}
+.pin .st{margin-top:13px;font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
+
+/* crumbs */
+.crumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.cr{border:1px solid var(--line);padding:22px;border-radius:5px;min-width:0;background:#111a15}
+.cr:nth-child(1){background:linear-gradient(180deg,#1c1a0e,#111a15)}
+.cr:nth-child(2){background:linear-gradient(180deg,#1d1310,#111a15)}
+.cr .big{font-family:"Rubik Mono One",sans-serif;font-size:16px;color:var(--cheese);line-height:1.55}
+.cr .who{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;margin:10px 0 12px;color:var(--dim)}
+.cr p{margin:0;font-size:14.5px;color:var(--dim)}
+
+/* pantry */
+.pantry{border:1px solid var(--line);background:var(--panel);border-radius:5px;overflow:hidden}
+.pantry .ph{border-bottom:1px solid var(--line);padding:11px 15px;background:var(--panel2);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pantry .ph b{font-family:"Rubik Mono One",sans-serif;font-size:12px;color:var(--cheese);font-weight:400}
+.row{display:grid;grid-template-columns:44px 48px 1fr 118px 92px;gap:12px;align-items:center;padding:9px 15px;border-bottom:1px solid rgba(46,66,56,.5);font-size:14.5px}
+.row:nth-child(even){background:rgba(29,44,37,.4)}
+.row .rk{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--dimmer)}
+.row .sp2{height:30px;display:flex;align-items:center;justify-content:center}
+.row .sp2 img{image-rendering:pixelated;max-height:28px;width:auto}
+.row .hn{font-family:"Roboto Mono",monospace;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.row .st2{font-family:"Roboto Mono",monospace;font-size:12px}
+.row .st2.got{color:var(--go)}
+.row .st2.miss{color:var(--dimmer)}
+.row .amt{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--cheese);text-align:right}
+.row.fresh{animation:flash 1.6s ease-out}
+@keyframes flash{from{background:rgba(242,182,50,.22)}to{background:transparent}}
+.counters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px}
+.ct{border:1px solid var(--line);background:#111a15;padding:16px;border-radius:4px;min-width:0}
+.ct b{display:block;font-family:"Roboto Mono",monospace;font-size:24px;color:var(--cheese)}
+.ct i{font-style:normal;font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer)}
+
+footer{border-top:1px solid var(--line);background:#080d0a;padding:32px 0 44px}
+footer .wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+
+#winWrap{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(5,9,7,.8);padding:20px}
+#winWrap.show{display:flex}
+#winCard{max-width:520px;width:100%;background:linear-gradient(180deg,#18241e,#0f1712);border:1px solid var(--cheese);border-radius:6px;
+  box-shadow:0 0 60px rgba(242,182,50,.18);padding:26px;text-align:center}
+#winCard img{image-rendering:pixelated;max-height:170px;width:auto}
+#winCard h3{font-size:19px;margin:10px 0 12px;color:var(--cheese)}
+#winCard p{margin:0 0 18px;color:var(--dim)}
+#rain{position:fixed;inset:0;pointer-events:none;z-index:140}
+
+@media (max-width:1000px){
+  .hero-in{grid-template-columns:1fr;gap:22px}
+  .hero-in>div:last-child{order:-1}
+  #ratImg{max-width:240px}
+  .gamegrid{grid-template-columns:1fr}
+  .pins,.haul{grid-template-columns:1fr 1fr}
+  .crumbs{grid-template-columns:1fr}
+  #nav{display:none}
+}
+@media (max-width:620px){
+  .chip .lg{display:none} .chip .sm{display:inline}
+  #bar .wrap{gap:7px;padding:0 14px} .chip{padding:7px 8px;letter-spacing:.05em}
+  .mark{font-size:17px}
+}
+@media (max-width:560px){
+  body{font-size:16px}
+  .pins,.haul,.counters{grid-template-columns:1fr}
+  .row{grid-template-columns:30px 40px 1fr 88px;gap:8px;font-size:13px}
+  .row .amt{display:none}
+  section{padding:40px 0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="bar"><div class="wrap">
+  <a class="mark" href="#top">RAT<span>FEES</span> <img id="markImg" src="assets/cheese.webp" alt="a crumb the rat has already taken"></a>
+  <nav id="nav">
+    <a href="#run">The run</a>
+    <a href="#how">How it works</a>
+    <a href="#crumbs">The split</a>
+    <a href="#pantry">Wallets tonight</a>
+  </nav>
+  <div class="spacer"></div>
+  <button class="chip" id="sfxBtn"><span class="lg">Sound: on</span><span class="sm">SFX</span></button>
+  <button class="chip" id="musBtn"><span class="lg">Music: off</span><span class="sm">MUS</span></button>
+  <a class="chip xLink" id="xBtn" href="#" target="_blank" rel="noopener">X</a>
+  <a class="chip soon" id="buyBtn" href="#"><span class="lg">Buy $RAT</span><span class="sm">Buy</span></a>
+</div></div>
+
+<div id="tick"><div id="tickIn"></div></div>
+
+<a id="top"></a>
+<section id="hero" style="border-top:none">
+ <div class="wrap hero-in">
+  <div>
+    <div class="tiny">Robinhood Chain &middot; behind the skirting board</div>
+    <h1>It runs the wallets and <em>takes the fee</em>.</h1>
+    <p class="lede">The rat goes down the chain wallet by wallet, looking for a fee somebody left lying out, and it is very good at telling which ones are not paying attention. It takes one crumb, carries it back to the hole, and everything that makes it home is split on the spot: half to everyone holding $RAT and the rest burns. Get noticed on the way out and the crumb is dropped where it stands.</p>
+    <div class="acts">
+      <a class="btn" href="#run">▶ Run a wallet</a>
+      <a class="btn ghost" href="#pantry">Who got run tonight</a>
+      <a class="btn ghost" href="#how">the rules</a>
+    </div>
+    <div class="meta">$RAT on pons &middot; one crumb per wallet &middot; it never asks and it never knocks</div>
+  </div>
+  <div>
+    <div class="ratbox">
+      <div class="scene">
+        <span class="tag">poke him &middot; he squeaks</span>
+        <div class="hole"></div>
+        <img id="ratImg" src="assets/rat.webp" alt="the rat, mid-job, holding somebody's fee">
+        <div class="drop" id="drop"></div>
+      </div>
+      <div class="playnow">
+        <a class="btn" href="#run">▶ the night run</a>
+        <span class="tiny">8 wallets &middot; 1 hole &middot; 0 explanations</span>
+      </div>
+    </div>
+  </div>
+ </div>
+</section>
+
+<section id="run">
+ <div class="wrap">
+  <div class="head"><h2>The run</h2><span class="tiny" id="runCount">wallet 1 of 8</span></div>
+  <p class="sub">Hold RUN to move and let go to freeze. The wallet looks up on its own schedule: while the eye is green you can move as much as you like, when it turns yellow you have about a second, and if you are still moving when it goes red you get caught and drop whatever you are holding. Running also makes noise, and enough noise makes it look up early. Grab the crumb, carry it back to the hole, do it eight times.</p>
+
+  <div class="gamegrid">
+    <div class="panel">
+      <div class="ph"><b>THE FLOOR</b><span class="tiny" id="wName">wallet: —</span></div>
+      <div id="cvWrap">
+        <canvas id="cv" width="960" height="520"></canvas>
+        <div id="hintBar">hold RUN (or SPACE) &middot; freeze before the eye turns red</div>
+      </div>
+      <div class="gctl">
+        <button id="runBtn">Run</button>
+        <button class="chip" id="resetBtn">New night</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="ph"><b>THE HAUL</b></div>
+        <div class="pb">
+          <div class="meter">
+            <div class="mt"><span>Way back to the hole</span><span id="progTxt">0%</span></div>
+            <div class="mbar"><i id="progFill"></i></div>
+          </div>
+          <div class="meter">
+            <div class="mt"><span>Noise you are making</span><span id="noiseTxt">quiet</span></div>
+            <div class="mbar"><i id="noiseFill"></i></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><b id="stDone">0</b><i>wallets run</i></div>
+            <div class="stat"><b id="stTook">$0</b><i>carried home</i></div>
+            <div class="stat"><b id="stEye">looking away</b><i>the wallet is</i></div>
+            <div class="stat"><b id="stCaught">0</b><i>times caught</i></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><b>FLOOR LOG</b></div>
+        <div class="pb"><div id="log"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="head" style="margin-top:38px"><h2 style="font-size:17px">Tonight's haul</h2><span class="tiny">one page per wallet he got through</span></div>
+  <div class="haul" id="haulGrid"></div>
+ </div>
+</section>
+
+<section id="how">
+ <div class="wrap">
+  <div class="head"><h2>How it works</h2><span class="tiny">four rules, none of them written down anywhere</span></div>
+  <p class="sub">There is no dashboard, no allowlist and nothing to sign. There is a rat and there is your kitchen.</p>
+  <div class="pins">
+    <div class="pin"><span class="n">01</span>
+      <h3>It runs</h3>
+      <p>It goes down the chain wallet by wallet on its own, reading who is trading and how carelessly. Busy wallets leave fees lying around like crumbs on a counter, and it can smell a busy wallet from several blocks away.</p>
+      <div class="st">wallet after wallet &middot; nobody points it anywhere</div>
+    </div>
+    <div class="pin"><span class="n">02</span>
+      <h3>It takes a crumb</h3>
+      <p>One crumb off one fee, in the same block, and then it leaves. It never cleans out a wallet and it never comes back to the same one twice in a night, which is exactly why nobody bothers doing anything about it.</p>
+      <div class="st">small enough that arguing costs more</div>
+    </div>
+    <div class="pin"><span class="n">03</span>
+      <h3>It gets seen</h3>
+      <p>Wallets do look up, usually at the worst possible moment. Anything the rat is carrying when it gets spotted is dropped on the floor right there, and a dropped crumb is gone for everyone, including him.</p>
+      <div class="st">caught = the crumb stays on the floor</div>
+    </div>
+    <div class="pin"><span class="n">04</span>
+      <h3>It gets home</h3>
+      <p>Everything that makes it back through the hole is split in the same block: half goes to everyone holding $RAT and the rest burns. Nothing to claim, nothing to stake, no forms — you either hold the thing or you are the kitchen.</p>
+      <div class="st">half to holders &middot; the rest burns</div>
+    </div>
+  </div>
+ </div>
+</section>
+
+<section id="crumbs">
+ <div class="wrap">
+  <div class="head"><h2>Where the crumbs go</h2><span class="tiny">decided the second he is through the hole</span></div>
+  <p class="sub">A crumb has three possible endings and the rat has an opinion about only one of them.</p>
+  <div class="crumbs">
+    <div class="cr">
+      <div class="big">half<br>to the holders</div>
+      <div class="who">everyone holding $RAT</div>
+      <p>Paid out of every crumb that makes it back through the hole, in the block it lands. You are not staking anything and there is nothing to claim — you are simply on the side of the wall the rat lives on.</p>
+    </div>
+    <div class="cr">
+      <div class="big">the rest<br>burns</div>
+      <div class="who">gone the same night</div>
+      <p>Bought back and sent to a dead address before the kitchen light even goes on. Every clean run makes the supply a little smaller and the rat a little more confident than it has any right to be.</p>
+    </div>
+    <div class="cr">
+      <div class="big">dropped<br>crumbs</div>
+      <div class="who">stay on the floor</div>
+      <p>Anything he is carrying when a wallet looks up hits the floor and stays there. Nobody picks it up, nobody gets it back, and he has never once gone back for one.</p>
+    </div>
+  </div>
+ </div>
+</section>
+
+<section id="pantry">
+ <div class="wrap">
+  <div class="head"><h2>Wallets run tonight</h2><span class="tiny">newest first</span></div>
+  <p class="sub">Everywhere the rat has been in the last few minutes, the clean jobs and the ones where somebody looked up at the wrong moment.</p>
+  <div class="pantry">
+    <div class="ph"><b>THE FLOORBOARDS</b><span class="tiny" id="pantryLive">reading the chain…</span></div>
+    <div id="pantryRows"></div>
+  </div>
+  <div class="counters">
+    <div class="ct"><b id="cTook">0</b><i>carried home tonight</i></div>
+    <div class="ct"><b id="cRuns">0</b><i>wallets run</i></div>
+    <div class="ct"><b id="cSeen">0</b><i>times he got seen</i></div>
+  </div>
+ </div>
+</section>
+
+<footer>
+ <div class="wrap">
+  <span class="mark">RAT<span style="color:var(--cheese)">FEES</span></span>
+  <span class="tiny">he is already behind the wall</span>
+  <div class="spacer"></div>
+  <a class="chip xLink" href="#" target="_blank" rel="noopener">X</a>
+  <span class="chip" id="caBox">CA: <b class="ca-val">soon</b></span>
+ </div>
+</footer>
+
+<div id="winWrap"><div id="winCard">
+  <img id="winImg" src="assets/rat.webp" alt="the rat, back home, with a night's worth of crumbs">
+  <h3 id="winTitle">EIGHT KITCHENS, ONE HOLE</h3>
+  <p id="winText">Eight wallets run in a night.</p>
+  <button class="btn" id="winClose">back behind the wall</button>
+</div></div>
+<div id="rain"></div>
+
+<script>
+/* ============ SETTINGS ============ */
+window.CONTRACT = "";
+window.TWITTER  = "";
+window.BUY_URL  = "";
+/* ================================== */
+var CA=(window.CONTRACT||"").trim(), TW=(window.TWITTER||"").trim(), BUY=(window.BUY_URL||"").trim();
+if(CA){
+  document.querySelectorAll(".ca-val").forEach(function(e){ e.textContent=CA.slice(0,6)+"…"+CA.slice(-4); });
+  document.getElementById("caBox").addEventListener("click",function(){
+    var b=this.querySelector("b"), old=b.textContent;
+    navigator.clipboard.writeText(CA).then(function(){ b.textContent="copied"; setTimeout(function(){ b.textContent=old; },1200); });
+  });
+}
+if(TW){ document.querySelectorAll("#xBtn,.xLink").forEach(function(a){ a.href=TW; }); }
+var buy=document.getElementById("buyBtn");
+if(BUY){ buy.href=BUY; buy.target="_blank"; buy.rel="noopener"; buy.classList.remove("soon"); }
+else{ buy.addEventListener("click",function(e){ e.preventDefault(); }); }
+</script>
+
+<script>
+/* ---------------- audio ---------------- */
+var AC=null, sfxOn=true, vol=1;
+function ac(){ try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); return AC; }catch(e){ return null; } }
+function tone(f1,f2,dur,type,g){
+  if(!sfxOn) return; var c=ac(); if(!c) return;
+  var o=c.createOscillator(), gg=c.createGain(), t=c.currentTime;
+  o.type=type||"sine"; o.frequency.setValueAtTime(f1,t);
+  if(f2&&f2!==f1) o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+dur);
+  gg.gain.setValueAtTime(.0001,t); gg.gain.exponentialRampToValueAtTime((g||.05)*vol,t+.012);
+  gg.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(gg); gg.connect(c.destination); o.start(t); o.stop(t+dur+.05);
+}
+function noise(dur,f,q,g,sweep){
+  if(!sfxOn) return; var c=ac(); if(!c) return;
+  var n=Math.floor(c.sampleRate*dur), b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0);
+  for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  var s=c.createBufferSource(); s.buffer=b;
+  var bp=c.createBiquadFilter(); bp.type="bandpass"; bp.frequency.setValueAtTime(f,c.currentTime); bp.Q.value=q||1;
+  if(sweep) bp.frequency.exponentialRampToValueAtTime(Math.max(60,sweep),c.currentTime+dur);
+  var gg=c.createGain(); gg.gain.setValueAtTime((g||.07)*vol,c.currentTime);
+  gg.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);
+  s.connect(bp); bp.connect(gg); gg.connect(c.destination); s.start(); s.stop(c.currentTime+dur+.02);
+}
+function patter(){ noise(.045,2200+Math.random()*900,6,.03); }
+function squeak(){ tone(1500,2300,.09,"square",.05); setTimeout(function(){ tone(2100,1500,.07,"square",.035); },80); }
+function creak(){ tone(220,180,.28,"sawtooth",.035); noise(.2,900,4,.03,400); }
+function busted(){ tone(330,110,.45,"square",.07); noise(.4,700,1.2,.09,160); }
+function homeSound(){ tone(660,990,.12,"triangle",.045); setTimeout(function(){ tone(990,1320,.16,"triangle",.04); },85); }
+function coinSound(){ tone(1000+Math.random()*400,2000,.1,"square",.03); }
+
+/* music: sneaky pizzicato walk */
+var MU={on:false,t:null,step:0,next:0}, STEP=.2;
+var WALK=[-12,-5,-8,-3,-12,-5,-8,-1,-14,-7,-10,-5,-14,-7,-10,-3];
+var TOP=[null,7,null,10,null,7,null,12,null,5,null,8,null,5,null,10];
+function hz(s){ return 220*Math.pow(2,s/12); }
+function pluck(semi,at,dur,g,type,cut){
+  var c=ac(); if(!c) return;
+  var o=c.createOscillator(), gg=c.createGain(), f=c.createBiquadFilter();
+  f.type="lowpass"; f.frequency.setValueAtTime(cut||1800,at); f.frequency.exponentialRampToValueAtTime(400,at+dur);
+  o.type=type||"triangle"; o.frequency.setValueAtTime(hz(semi),at);
+  gg.gain.setValueAtTime(.0001,at); gg.gain.exponentialRampToValueAtTime(g*vol,at+.008);
+  gg.gain.exponentialRampToValueAtTime(.0001,at+dur);
+  o.connect(f); f.connect(gg); gg.connect(c.destination); o.start(at); o.stop(at+dur+.05);
+}
+function musSchedule(){
+  var c=ac(); if(!c) return;
+  while(MU.next < c.currentTime+.4){
+    var at=Math.max(MU.next,c.currentTime+.02), i=MU.step;
+    pluck(WALK[i%WALK.length],at,.22,.06,"triangle",1500);
+    var t=TOP[i%TOP.length];
+    if(t!==null) pluck(t+12,at+.02,.16,.022,"square",2600);
+    if(i%8===6) noise(.04,5200,2,.008);
+    MU.next+=STEP; MU.step++;
+  }
+}
+function musStart(){ var c=ac(); if(!c) return; MU.on=true; MU.next=c.currentTime+.1; if(!MU.t) MU.t=setInterval(musSchedule,80);
+  document.querySelector("#musBtn .lg").textContent="Music: on"; document.getElementById("musBtn").classList.add("on"); }
+function musStop(){ MU.on=false; if(MU.t){ clearInterval(MU.t); MU.t=null; }
+  document.querySelector("#musBtn .lg").textContent="Music: off"; document.getElementById("musBtn").classList.remove("on"); }
+document.getElementById("musBtn").onclick=function(){ MU.on?musStop():musStart(); };
+document.getElementById("sfxBtn").onclick=function(){ sfxOn=!sfxOn; this.querySelector(".lg").textContent="Sound: "+(sfxOn?"on":"off"); this.classList.toggle("on",sfxOn); };
+document.getElementById("sfxBtn").classList.add("on");
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden&&MU.on&&MU.t){ clearInterval(MU.t); MU.t=null; }
+  else if(!document.hidden&&MU.on&&!MU.t){ var c=ac(); if(c) MU.next=c.currentTime+.1; MU.t=setInterval(musSchedule,80); }
+});
+
+/* ---------------- ticker ---------------- */
+var TICKS=["it runs the wallets, one crumb at a time","nobody points it at anybody","half of everything it carries home goes to the holders","get seen and the crumb stays on the floor","it never runs the same wallet twice in a night","busy wallets smell like crumbs","he is already behind the wall"];
+(function(){ var s=""; for(var r=0;r<2;r++) for(var i=0;i<TICKS.length;i++) s+=TICKS[i]+"<b>◆</b>"; document.getElementById("tickIn").innerHTML=s; })();
+
+/* ---------------- assets ---------------- */
+var RAT=new Image(); RAT.src="assets/rat.webp";
+var CHEESE=new Image(); CHEESE.src="assets/cheese.webp";
+
+/* hero interaction */
+var dropBox=document.getElementById("drop");
+function dropCoin(x,y,host){
+  var box=host||dropBox;
+  var d=document.createElement("div"); d.className="coin";
+  var W=box.clientWidth||320, H=box.clientHeight||320;
+  if(x===undefined){ x=Math.random()*W; y=-20; }
+  d.style.left=(x-11)+"px"; d.style.top=(y-11)+"px"; box.appendChild(d);
+  var vx=(Math.random()-.5)*7, vy=-4-Math.random()*5, n=0, rot=(Math.random()-.5)*22, px=x-11, py=y-11, x0=x-11, y0=y-11;
+  (function stp(){
+    n++; vy+=.42; px+=vx; py+=vy;
+    d.style.transform="translate("+(px-x0)+"px,"+(py-y0)+"px) rotate("+(n*rot)+"deg)";
+    if(n>120||py>H+340){ d.remove(); return; }
+    if(n>100) d.style.opacity=String(1-(n-100)/20);
+    requestAnimationFrame(stp);
+  })();
+}
+document.getElementById("ratImg").addEventListener("pointerdown",function(e){
+  var box=this.parentNode, r=box.getBoundingClientRect();
+  for(var i=0;i<7;i++) setTimeout(function(){ dropCoin(e.clientX-r.left+(Math.random()-.5)*44, e.clientY-r.top); },i*45);
+  squeak(); patter();
+  var me=this; me.style.transform="translateY(-6px) scale(.97)";
+  setTimeout(function(){ me.style.transform=""; },140);
+});
+
+/* ---------------- pantry feed ---------------- */
+var HANDLES=["jeetmachine","topblaster","moonboy","rugsurvivor","gmfrens","paperhands","nightshift","marketbuy","fomofinger","copemedal","apeondesk","limitless"];
+var TAILS=[".sol",".rh",".eth","0x4f21","0x9d07","0xbeef"];
+var SEEN=["looked up too early","heard something","turned around","checked the counter"];
+function nfmt(n){ return n.toLocaleString("en-US"); }
+var pantry=[], tookAll=126400, runsAll=8921, seenAll=1147;
+function mkRow(){
+  var got=Math.random()<.62;
+  return { n:HANDLES[Math.floor(Math.random()*HANDLES.length)]+TAILS[Math.floor(Math.random()*TAILS.length)],
+           got:got, txt:got?"crumb carried home":SEEN[Math.floor(Math.random()*SEEN.length)],
+           amt:got?Math.round(60+Math.random()*1900):0 };
+}
+for(var i=0;i<9;i++) pantry.push(mkRow());
+function paintPantry(fresh){
+  var h="";
+  for(var i=0;i<pantry.length;i++){
+    var d=pantry[i];
+    h+='<div class="row'+(i===fresh?" fresh":"")+'"><span class="rk">'+(i+1<10?"0":"")+(i+1)+'</span>'+
+       '<span class="sp2">'+(d.got?'<img src="assets/cheese.webp" alt="a crumb taken off '+d.n+'">':'<img src="assets/rat.webp" alt="the rat leaving '+d.n+' empty-handed" style="opacity:.35">')+'</span>'+
+       '<span class="hn">'+d.n+'</span>'+
+       '<span class="st2 '+(d.got?"got":"miss")+'">'+d.txt+'</span>'+
+       '<span class="amt">'+(d.got?"$"+nfmt(d.amt):"—")+'</span></div>';
+  }
+  document.getElementById("pantryRows").innerHTML=h;
+}
+paintPantry(-1);
+function paintCounters(){
+  document.getElementById("cTook").textContent="$"+nfmt(tookAll);
+  document.getElementById("cRuns").textContent=nfmt(runsAll);
+  document.getElementById("cSeen").textContent=nfmt(seenAll);
+  document.getElementById("pantryLive").textContent="last block read "+(1+Math.floor(Math.random()*45))+"s ago";
+}
+paintCounters();
+setInterval(function(){
+  var r=mkRow();
+  pantry.pop(); pantry.unshift(r);
+  runsAll++; if(r.got) tookAll+=r.amt; else seenAll++;
+  paintPantry(0); paintCounters();
+},4100);
+
+/* ---------------- the run (game) ---------------- */
+var WALLETS=[
+ {n:"jeetmachine.sol",  tag:"buys all night, checks nothing", away:[2.4,3.4], turn:1.05, watch:1.5, noise:.21, worth:1900},
+ {n:"gmfrens.rh",       tag:"one eye on the chart, one on the chat", away:[2.1,3.0], turn:.95, watch:1.6, noise:.24, worth:2400},
+ {n:"moonboy0x4f21",    tag:"looks up whenever it turns red", away:[1.9,2.7], turn:.85, watch:1.7, noise:.27, worth:3100},
+ {n:"anon9931.eth",     tag:"new address, nervous hands", away:[1.7,2.5], turn:.78, watch:1.8, noise:.30, worth:3900},
+ {n:"rugsurvivor.sol",  tag:"has been robbed before, remembers", away:[1.5,2.2], turn:.70, watch:1.9, noise:.33, worth:5200},
+ {n:"nightshift.rh",    tag:"awake at four in the morning", away:[1.35,2.0], turn:.64, watch:2.0, noise:.37, worth:6800},
+ {n:"whale0x9d07",      tag:"counts everything, twice", away:[1.2,1.8], turn:.58, watch:2.1, noise:.41, worth:11500},
+ {n:"0x0001dead",       tag:"two hundred people watch this one", away:[1.05,1.6], turn:.52, watch:2.2, noise:.46, worth:19000}
+];
+var HAUL=[
+ ["the easiest kitchen on the chain","He buys all night and never once looks at what comes back, so the crumb was sitting on the counter in plain view. I was in and out before the next block."],
+ ["half a glance","Spends the evening in a group chat explaining how fees work, which means his eyes are on the phone and not on the floor. The floor is where I live."],
+ ["only looks when it is red","Checks the wallet exactly when the candle turns, which is a schedule, and a schedule is a gift. I moved on the green and stood still on the rest."],
+ ["nervous hands","Brand new address, so he checks it every twelve seconds like it might have run away. Took three freezes in the middle of the floor to get past him."],
+ ["he has been robbed before","Got cleaned out last spring and has not relaxed since. This one I did in four short runs with long pauses, and he still turned around twice."],
+ ["four in the morning","Awake when nobody should be, staring at a chart nobody else is watching. Somehow being the only two awake in the building made it easier, not harder."],
+ ["the whale counts twice","Enormous, slow and suspicious, and he reconciles everything by hand. The crumb I took off him is worth more than the other six put together."],
+ ["the wallet everybody watches","Two hundred addresses mirror this one, so getting seen here means getting seen two hundred times. Straight in, straight out, no second crumb."]
+];
+(function(){
+  var h="";
+  for(var i=0;i<8;i++) h+='<div class="hc locked" id="hc'+i+'"><u>page '+(i+1<10?"0":"")+(i+1)+'</u><b>'+HAUL[i][0]+'</b><p>'+HAUL[i][1]+'</p></div>';
+  document.getElementById("haulGrid").innerHTML=h;
+})();
+
+var cv=document.getElementById("cv"), cx=cv.getContext("2d");
+var G={ w:0, x:.06, carry:false, holding:false, noise:0, eye:"away", eyeT:2.6, done:0, took:0, caught:0,
+        t:0, flash:0, over:false, msg:"", msgT:0, shake:0 };
+var logBox=document.getElementById("log");
+function logIt(s,strong){
+  var d=document.createElement("div"); d.innerHTML=strong?("<b>"+s+"</b>"):s;
+  logBox.insertBefore(d,logBox.firstChild);
+  while(logBox.children.length>40) logBox.removeChild(logBox.lastChild);
+}
+function eyeWord(){ return G.eye==="away"?"looking away":(G.eye==="turn"?"turning…":"watching you"); }
+function say(m,t){ G.msg=m; G.msgT=t||1.6; }
+function paintHUD(){
+  var prog=G.carry?(1-(G.x-.06)/.84):(G.x-.06)/.84;
+  document.getElementById("progFill").style.width=Math.max(0,Math.min(100,prog*100))+"%";
+  document.getElementById("progTxt").textContent=G.carry?(Math.round(Math.max(0,Math.min(1,prog))*100)+"% home"):(Math.round(Math.max(0,Math.min(1,prog))*100)+"% to the crumb");
+  document.getElementById("noiseFill").style.width=Math.min(100,G.noise*100)+"%";
+  document.getElementById("noiseTxt").textContent=G.noise>.75?"he can hear you":(G.noise>.45?"floorboards":(G.noise>.2?"scratching":"quiet"));
+  document.getElementById("stDone").textContent=G.done;
+  document.getElementById("stTook").textContent="$"+nfmt(Math.floor(G.took));
+  document.getElementById("stEye").textContent=eyeWord();
+  document.getElementById("stCaught").textContent=G.caught;
+  document.getElementById("runCount").textContent="wallet "+Math.min(8,G.w+1)+" of 8";
+  document.getElementById("wName").textContent=G.over?"the night is done":"wallet: "+WALLETS[G.w].n;
+}
+function nextEye(){
+  var w=WALLETS[G.w];
+  if(G.eye==="away"){ G.eye="turn"; G.eyeT=w.turn; creak(); }
+  else if(G.eye==="turn"){ G.eye="watch"; G.eyeT=w.watch;
+    if(G.holding){ caught(); } }
+  else { G.eye="away"; G.eyeT=w.away[0]+Math.random()*(w.away[1]-w.away[0]); }
+  paintHUD();
+}
+function caught(){
+  G.caught++; G.flash=1; G.shake=1; busted();
+  var lost=G.carry;
+  G.carry=false; G.x=.06; G.holding=false; G.noise=0;
+  document.getElementById("runBtn").classList.remove("hold");
+  say("SEEN",1.6);
+  logIt(lost?("caught carrying. the crumb is on "+WALLETS[G.w].n+"'s floor now and it stays there."):("caught halfway across "+WALLETS[G.w].n+"'s floor. back to the hole."),true);
+  paintHUD();
+}
+function grab(){
+  G.carry=true; squeak();
+  logIt("crumb lifted off "+WALLETS[G.w].n+". now the long walk back.");
+  say("GOT IT",1.2);
+  paintHUD();
+}
+function home(){
+  var w=WALLETS[G.w];
+  var take=Math.round(w.worth*(.7+Math.random()*.6));
+  G.took+=take;
+  document.getElementById("hc"+G.w).classList.remove("locked");
+  homeSound();
+  logIt("home with $"+nfmt(take)+" off "+w.n+" · half to the holders, the rest burns.",true);
+  for(var i=0;i<6;i++) setTimeout(function(){ dropCoin(Math.random()*window.innerWidth,-20,document.getElementById("rain")); },i*80);
+  G.done++; G.carry=false; G.x=.06; G.noise=0;
+  if(G.done>=8){
+    G.over=true; G.holding=false;
+    document.getElementById("runBtn").disabled=true;
+    document.getElementById("hintBar").textContent="eight wallets run · the night is over";
+    showWin(); paintHUD(); return;
+  }
+  G.w++;
+  G.eye="away"; G.eyeT=WALLETS[G.w].away[1];
+  logIt("next wallet: "+WALLETS[G.w].n+" — "+WALLETS[G.w].tag+".");
+  paintHUD();
+}
+function step(dt){
+  G.t+=dt;
+  if(G.msgT>0) G.msgT=Math.max(0,G.msgT-dt);
+  if(G.flash>0) G.flash=Math.max(0,G.flash-dt*2.2);
+  if(G.shake>0) G.shake=Math.max(0,G.shake-dt*2.6);
+  if(G.over) return;
+  var w=WALLETS[G.w];
+  G.eyeT-=dt;
+  if(G.eyeT<=0) nextEye();
+  if(G.holding){
+    var spd=(G.carry?.235:.32);
+    G.x+=(G.carry?-1:1)*dt*spd;
+    G.noise+=dt*w.noise*(G.carry?1.25:1);
+    if(Math.random()<dt*14) patter();
+    if(G.eye==="watch"){ caught(); return; }
+    if(!G.carry&&G.x>=.9){ G.x=.9; grab(); }
+    if(G.carry&&G.x<=.06){ G.x=.06; home(); return; }
+    if(G.noise>=1){
+      G.noise=0;
+      if(G.eye!=="watch"){ G.eye="turn"; G.eyeT=.28; creak(); say("HE HEARD THAT",1.1); logIt("too much noise on "+w.n+"'s floor. he is turning."); }
+    }
+  }else{
+    G.noise=Math.max(0,G.noise-dt*.85);
+  }
+  paintHUD();
+}
+
+/* ---- drawing ---- */
+function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function draw(){
+  var W=cv.width, H=cv.height;
+  var sh=G.shake>0?(Math.random()-.5)*16*G.shake:0;
+  cx.save(); cx.translate(sh,0);
+  var g=cx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#0b1310"); g.addColorStop(1,"#131d18");
+  cx.fillStyle=g; cx.fillRect(-20,0,W+40,H);
+
+  var floorY=H-108;
+  /* wall tiles */
+  cx.strokeStyle="rgba(46,66,56,.55)"; cx.lineWidth=2;
+  for(var x=0;x<W;x+=78){ cx.beginPath(); cx.moveTo(x,120); cx.lineTo(x,floorY); cx.stroke(); }
+  for(var y=120;y<floorY;y+=64){ cx.beginPath(); cx.moveTo(0,y); cx.lineTo(W,y); cx.stroke(); }
+
+  /* the wallet on the right: a glowing terminal on a counter */
+  var w=WALLETS[Math.min(7,G.w)];
+  var tx=W-268, ty=floorY-238;
+  cx.fillStyle="#0e1714"; rr(cx,tx,ty,230,176,8); cx.fill();
+  var eyeCol=G.eye==="away"?"#4fbf6a":(G.eye==="turn"?"#f2b632":"#e04a4a");
+  cx.strokeStyle=eyeCol; cx.lineWidth=3; rr(cx,tx,ty,230,176,8); cx.stroke();
+  cx.save(); rr(cx,tx+8,ty+8,214,160,6); cx.clip();
+  cx.fillStyle="rgba(20,35,28,.9)"; cx.fillRect(tx+8,ty+8,214,160);
+  cx.strokeStyle="rgba(242,182,50,.5)"; cx.lineWidth=2; cx.beginPath();
+  for(var i=0;i<=14;i++){
+    var px=tx+18+i*14, py=ty+110-Math.sin(i*.9+G.t)*26-i*3;
+    if(i===0) cx.moveTo(px,py); else cx.lineTo(px,py);
+  }
+  cx.stroke();
+  cx.fillStyle="#efe6cf"; cx.font="15px 'Roboto Mono', monospace"; cx.textAlign="left";
+  cx.fillText(w.n,tx+18,ty+34);
+  cx.fillStyle="#8fa396"; cx.font="11px 'Roboto Mono', monospace";
+  cx.fillText(w.tag,tx+18,ty+54);
+  cx.restore();
+  /* counter */
+  cx.fillStyle="#1b2620"; cx.fillRect(tx-30,floorY-62,290,22);
+  cx.strokeStyle="#2e4238"; cx.lineWidth=2; cx.strokeRect(tx-30,floorY-62,290,22);
+
+  /* the eye indicator */
+  var ex=W/2, ey=62;
+  cx.fillStyle="#0e1714"; rr(cx,ex-150,ey-34,300,58,10); cx.fill();
+  cx.strokeStyle=eyeCol; cx.lineWidth=3; rr(cx,ex-150,ey-34,300,58,10); cx.stroke();
+  cx.fillStyle=eyeCol;
+  cx.beginPath(); cx.ellipse(ex-104,ey-4,22,G.eye==="away"?4:14,0,0,7); cx.fill();
+  if(G.eye!=="away"){ cx.fillStyle="#0b1310"; cx.beginPath(); cx.arc(ex-104,ey-4,6,0,7); cx.fill(); }
+  cx.fillStyle=eyeCol; cx.font="17px 'Roboto Mono', monospace"; cx.textAlign="left";
+  cx.fillText(G.eye==="away"?"LOOKING AWAY":(G.eye==="turn"?"TURNING…":"WATCHING YOU"),ex-70,ey+2);
+
+  /* floor */
+  cx.fillStyle="#17231e"; cx.fillRect(-20,floorY,W+40,H-floorY);
+  cx.strokeStyle="#2e4238"; cx.lineWidth=3; cx.beginPath(); cx.moveTo(-20,floorY); cx.lineTo(W+40,floorY); cx.stroke();
+  cx.strokeStyle="rgba(46,66,56,.5)"; cx.lineWidth=2;
+  for(var x=0;x<W;x+=54){ cx.beginPath(); cx.moveTo(x,floorY); cx.lineTo(x-26,H); cx.stroke(); }
+
+  /* the hole */
+  cx.fillStyle="#040806"; cx.beginPath();
+  cx.moveTo(24,floorY); cx.quadraticCurveTo(66,floorY-78,108,floorY); cx.closePath(); cx.fill();
+  cx.strokeStyle="#2e4238"; cx.lineWidth=3; cx.stroke();
+  cx.fillStyle="#61756a"; cx.font="12px 'Roboto Mono', monospace"; cx.textAlign="center";
+  cx.fillText("HOME",66,floorY+24);
+
+  /* the crumb on the floor */
+  if(!G.carry&&CHEESE.complete&&CHEESE.naturalWidth){
+    var cw=64, ch=cw*(CHEESE.naturalHeight/CHEESE.naturalWidth);
+    cx.save(); cx.imageSmoothingEnabled=false;
+    cx.drawImage(CHEESE,.9*W-cw/2,floorY-ch+6+Math.sin(G.t*2)*2,cw,ch); cx.restore();
+  }
+
+  /* the rat */
+  if(RAT.complete&&RAT.naturalWidth){
+    var rw=132, rh=rw*(RAT.naturalHeight/RAT.naturalWidth);
+    var rx=G.x*W, ry=floorY-rh+10;
+    var bounce=G.holding?Math.abs(Math.sin(G.t*16))*7:0;
+    cx.save(); cx.imageSmoothingEnabled=false;
+    cx.translate(rx,ry+rh-bounce);
+    if(!G.carry) cx.scale(-1,1);            /* face the way he is going */
+    cx.drawImage(RAT,-rw/2,-rh,rw,rh);
+    cx.restore();
+    if(G.carry&&CHEESE.complete){
+      var cw2=40, ch2=cw2*(CHEESE.naturalHeight/CHEESE.naturalWidth);
+      cx.save(); cx.imageSmoothingEnabled=false;
+      cx.drawImage(CHEESE,rx-cw2/2-18,ry+rh*.45-bounce,cw2,ch2); cx.restore();
+    }
+  }
+
+  /* message */
+  if(G.msgT>0){
+    cx.textAlign="center"; cx.font="30px 'Rubik Mono One', sans-serif";
+    cx.fillStyle="rgba(5,9,7,.9)"; cx.fillText(G.msg,W/2+3,H/2-6+3);
+    cx.fillStyle=G.msg==="SEEN"?"#e04a4a":"#f2b632"; cx.fillText(G.msg,W/2,H/2-6);
+  }
+  if(G.flash>0){ cx.fillStyle="rgba(224,74,74,"+(G.flash*.45)+")"; cx.fillRect(0,0,W,H); }
+
+  if(G.over){
+    cx.fillStyle="rgba(5,9,7,.85)"; cx.fillRect(0,0,W,H);
+    cx.fillStyle="#f2b632"; cx.font="24px 'Rubik Mono One', sans-serif"; cx.textAlign="center";
+    cx.fillText("EIGHT KITCHENS, ONE HOLE",W/2,H/2-6);
+    cx.fillStyle="#8fa396"; cx.font="15px 'Roboto Mono', monospace";
+    cx.fillText("$"+nfmt(Math.floor(G.took))+" carried home · seen "+G.caught+" times",W/2,H/2+28);
+  }
+  cx.restore();
+  cx.textAlign="left";
+}
+
+var lastT=performance.now();
+setInterval(function(){
+  var now=performance.now(), dt=Math.min(.12,(now-lastT)/1000); lastT=now;
+  step(dt);
+  if(!document.hidden) draw();
+},1000/60);
+
+/* ---------------- input ---------------- */
+var runBtn=document.getElementById("runBtn");
+function holdOn(e){
+  if(G.over) return;
+  if(e&&e.preventDefault) e.preventDefault();
+  ac();
+  if(G.eye==="watch"){ caught(); return; }
+  G.holding=true; runBtn.classList.add("hold");
+}
+function holdOff(){ if(!G.holding) return; G.holding=false; runBtn.classList.remove("hold"); }
+runBtn.addEventListener("pointerdown",holdOn);
+window.addEventListener("pointerup",holdOff);
+window.addEventListener("pointercancel",holdOff);
+cv.addEventListener("pointerdown",holdOn);
+document.addEventListener("keydown",function(e){ if(e.code==="Space"){ e.preventDefault(); if(!G.holding) holdOn(); } });
+document.addEventListener("keyup",function(e){ if(e.code==="Space") holdOff(); });
+function resetGame(){
+  G.w=0; G.x=.06; G.carry=false; G.holding=false; G.noise=0; G.eye="away"; G.eyeT=2.6;
+  G.done=0; G.took=0; G.caught=0; G.over=false; G.flash=0; G.msgT=0;
+  for(var i=0;i<8;i++) document.getElementById("hc"+i).classList.add("locked");
+  runBtn.disabled=false; runBtn.classList.remove("hold");
+  document.getElementById("hintBar").textContent="hold RUN (or SPACE) · freeze before the eye turns red";
+  logBox.innerHTML="";
+  logIt("out of the hole. first wallet: "+WALLETS[0].n+" — "+WALLETS[0].tag+".");
+  paintHUD();
+}
+document.getElementById("resetBtn").onclick=resetGame;
+
+/* ---------------- win ---------------- */
+function showWin(){
+  document.getElementById("winText").textContent="Eight wallets run in one night, $"+nfmt(Math.floor(G.took))+" carried back through the hole and seen "+G.caught+(G.caught===1?" time":" times")+". Nobody has replaced a single skirting board.";
+  document.getElementById("winWrap").classList.add("show");
+  homeSound();
+  var n=0, iv=setInterval(function(){
+    for(var i=0;i<4;i++) dropCoin(Math.random()*window.innerWidth,-20,document.getElementById("rain"));
+    coinSound();
+    if(++n>14) clearInterval(iv);
+  },150);
+}
+document.getElementById("winClose").onclick=function(){ document.getElementById("winWrap").classList.remove("show"); };
+
+resetGame();
+</script>
+</body>
+</html>
